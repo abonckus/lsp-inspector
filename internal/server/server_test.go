@@ -11,14 +11,14 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/arbo/lsp-inspector/internal/parser"
+	"github.com/abonckus/lsp-inspector/internal/parser"
 )
 
 func TestServer_ServesStaticFiles(t *testing.T) {
 	staticFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<html>test</html>")},
 	}
-	s := New(staticFS, nil)
+	s := New(staticFS, nil, "", nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
@@ -40,7 +40,7 @@ func TestServer_WebSocketSendsInitialMessages(t *testing.T) {
 		{Level: "START", Timestamp: "2026-04-08 10:00:00", Type: "info", Direction: "info", Line: 0},
 		{Level: "DEBUG", Timestamp: "2026-04-08 10:00:01", Type: "rpc.send", Direction: "send", Method: "initialize", Line: 1},
 	}
-	s := New(staticFS, initialMsgs)
+	s := New(staticFS, initialMsgs, "", nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
@@ -70,7 +70,7 @@ func TestServer_WebSocketBroadcastsAppend(t *testing.T) {
 	staticFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
 	}
-	s := New(staticFS, nil)
+	s := New(staticFS, nil, "", nil)
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 

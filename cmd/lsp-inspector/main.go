@@ -10,10 +10,10 @@ import (
 	"os/exec"
 	"runtime"
 
-	webfs "github.com/arbo/lsp-inspector/web"
-	"github.com/arbo/lsp-inspector/internal/parser"
-	"github.com/arbo/lsp-inspector/internal/server"
-	"github.com/arbo/lsp-inspector/internal/watcher"
+	webfs "github.com/abonckus/lsp-inspector/web"
+	"github.com/abonckus/lsp-inspector/internal/parser"
+	"github.com/abonckus/lsp-inspector/internal/server"
+	"github.com/abonckus/lsp-inspector/internal/watcher"
 )
 
 func main() {
@@ -48,13 +48,16 @@ func main() {
 	initialMsgs := parser.ParseLines(lines, 0)
 	log.Printf("Parsed %d messages from %s", len(initialMsgs), logFile)
 
-	// Create server — web.FS is already rooted at "web/", no Sub needed
-	srv := server.New(webfs.FS, initialMsgs)
-
 	// Start file watching
+	lineOffset := len(lines)
+
+	// Create server — web.FS is already rooted at "web/", no Sub needed
+	srv := server.New(webfs.FS, initialMsgs, logFile, func() {
+		w.ResetOffset()
+		lineOffset = 0
+	})
 	changes := w.Watch()
 	go func() {
-		lineOffset := len(lines)
 		for newLines := range changes {
 			msgs := parser.ParseLines(newLines, lineOffset)
 			lineOffset += len(newLines)

@@ -11,10 +11,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/arbo/lsp-inspector/internal/parser"
-	"github.com/arbo/lsp-inspector/internal/server"
-	"github.com/arbo/lsp-inspector/internal/watcher"
-	webfs "github.com/arbo/lsp-inspector/web"
+	"github.com/abonckus/lsp-inspector/internal/parser"
+	"github.com/abonckus/lsp-inspector/internal/server"
+	"github.com/abonckus/lsp-inspector/internal/watcher"
+	webfs "github.com/abonckus/lsp-inspector/web"
 )
 
 // lspLogLines contains a realistic lsp.log with 7 parseable lines.
@@ -95,7 +95,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// --- Step 4: Create server with web.FS and parsed messages ---
-	srv := server.New(webfs.FS, msgs)
+	srv := server.New(webfs.FS, msgs, logPath, nil)
 
 	// --- Step 5: Start httptest server, connect WebSocket, verify ---
 	ts := httptest.NewServer(srv.Handler())

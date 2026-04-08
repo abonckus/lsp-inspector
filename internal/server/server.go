@@ -4,34 +4,45 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gorilla/websocket"
 
-	"github.com/arbo/lsp-inspector/internal/parser"
+	"github.com/abonckus/lsp-inspector/internal/parser"
 )
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+type client struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
 // Server handles HTTP and WebSocket connections.
 type Server struct {
 	staticFS    fs.FS
+	logPath     string
 	initialMsgs []*parser.Message
 	mu          sync.RWMutex
-	clients     map[*websocket.Conn]struct{}
+	clients     map[*client]struct{}
+	onClear     func() // called after log file is truncated
 }
 
-// New creates a Server with the given static filesystem and initial messages.
-func New(staticFS fs.FS, initialMsgs []*parser.Message) *Server {
+// New creates a Server with the given static filesystem, initial messages,
+// the path to the log file, and a callback invoked after the log is cleared.
+func New(staticFS fs.FS, initialMsgs []*parser.Message, logPath string, onClear func()) *Server {
 	if initialMsgs == nil {
 		initialMsgs = []*parser.Message{}
 	}
 	return &Server{
 		staticFS:    staticFS,
+		logPath:     logPath,
 		initialMsgs: initialMsgs,
-		clients:     make(map[*websocket.Conn]struct{}),
+		clients:     make(map[*client]struct{}),
+		onClear:     onClear,
 	}
 }
 
@@ -39,6 +50,7 @@ func New(staticFS fs.FS, initialMsgs []*parser.Message) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWS)
+	mux.HandleFunc("/api/clear", s.handleClear)
 	mux.Handle("/", http.FileServer(http.FS(s.staticFS)))
 	return mux
 }
@@ -49,8 +61,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c := &client{conn: conn}
+
 	s.mu.Lock()
-	s.clients[conn] = struct{}{}
+	s.clients[c] = struct{}{}
 	msgs := make([]*parser.Message, len(s.initialMsgs))
 	copy(msgs, s.initialMsgs)
 	s.mu.Unlock()
@@ -60,15 +74,18 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		"type":     "initial",
 		"messages": msgs,
 	}
-	if err := conn.WriteJSON(envelope); err != nil {
-		s.removeClient(conn)
+	c.mu.Lock()
+	err = conn.WriteJSON(envelope)
+	c.mu.Unlock()
+	if err != nil {
+		s.removeClient(c)
 		return
 	}
 
 	// Keep connection alive, read (and discard) client messages
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
-			s.removeClient(conn)
+			s.removeClient(c)
 			return
 		}
 	}
@@ -79,31 +96,73 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Broadcast(msgs []*parser.Message) {
 	s.mu.Lock()
 	s.initialMsgs = append(s.initialMsgs, msgs...)
-	clients := make([]*websocket.Conn, 0, len(s.clients))
+	clients := make([]*client, 0, len(s.clients))
 	for c := range s.clients {
 		clients = append(clients, c)
 	}
 	s.mu.Unlock()
 
-	envelope := map[string]interface{}{
+	data, err := json.Marshal(map[string]interface{}{
 		"type":     "append",
 		"messages": msgs,
-	}
-	data, err := json.Marshal(envelope)
+	})
 	if err != nil {
 		return
 	}
 
 	for _, c := range clients {
-		if err := c.WriteMessage(websocket.TextMessage, data); err != nil {
+		c.mu.Lock()
+		err := c.conn.WriteMessage(websocket.TextMessage, data)
+		c.mu.Unlock()
+		if err != nil {
 			s.removeClient(c)
 		}
 	}
 }
 
-func (s *Server) removeClient(conn *websocket.Conn) {
+func (s *Server) handleClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Truncate the log file
+	if err := os.Truncate(s.logPath, 0); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Reset server state
 	s.mu.Lock()
-	delete(s.clients, conn)
+	s.initialMsgs = []*parser.Message{}
+	clients := make([]*client, 0, len(s.clients))
+	for c := range s.clients {
+		clients = append(clients, c)
+	}
 	s.mu.Unlock()
-	conn.Close()
+
+	// Notify watcher to reset its offset
+	if s.onClear != nil {
+		s.onClear()
+	}
+
+	// Tell all clients to clear
+	data, _ := json.Marshal(map[string]interface{}{
+		"type":     "initial",
+		"messages": []*parser.Message{},
+	})
+	for _, c := range clients {
+		c.mu.Lock()
+		c.conn.WriteMessage(websocket.TextMessage, data)
+		c.mu.Unlock()
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) removeClient(c *client) {
+	s.mu.Lock()
+	delete(s.clients, c)
+	s.mu.Unlock()
+	c.conn.Close()
 }

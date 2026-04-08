@@ -16,6 +16,15 @@
   const msgCountEl = document.getElementById("msg-count");
   const newMsgIndicator = document.getElementById("new-msg-indicator");
   const newMsgCountEl = document.getElementById("new-msg-count");
+  const clearBtn = document.getElementById("clear-btn");
+
+  // --- Clear log ---
+  clearBtn.addEventListener("click", function () {
+    if (!confirm("Clear the log file? This cannot be undone.")) return;
+    fetch("/api/clear", { method: "POST" }).catch(function (err) {
+      console.error("clear failed:", err);
+    });
+  });
 
   // --- WebSocket ---
   let ws;
