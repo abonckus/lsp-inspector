@@ -2,11 +2,10 @@ package watcher
 
 import (
 	"bufio"
+	"log"
 	"os"
-	"strings"
 	"sync"
-
-	"github.com/fsnotify/fsnotify"
+	"time"
 )
 
 // Watcher watches a log file for appended content.
@@ -14,30 +13,18 @@ type Watcher struct {
 	path   string
 	offset int64
 	mu     sync.Mutex
-	fsw    *fsnotify.Watcher
 	done   chan struct{}
 }
 
 // New creates a Watcher for the given file path.
 func New(path string) (*Watcher, error) {
-	fsw, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
-
-	// Watch the directory containing the file (more reliable for file writes on some OS)
-	dir := path
-	if idx := strings.LastIndexAny(path, "/\\"); idx >= 0 {
-		dir = path[:idx]
-	}
-	if err := fsw.Add(dir); err != nil {
-		fsw.Close()
+	// Verify the file is accessible
+	if _, err := os.Stat(path); err != nil {
 		return nil, err
 	}
 
 	return &Watcher{
 		path: path,
-		fsw:  fsw,
 		done: make(chan struct{}),
 	}, nil
 }
@@ -69,36 +56,27 @@ func (w *Watcher) ReadAll() []string {
 	return lines
 }
 
-// Watch starts watching for file changes and returns a channel that receives
-// slices of new lines when the file grows.
+// Watch starts watching for file changes by polling and returns a channel
+// that receives slices of new lines when the file grows.
 func (w *Watcher) Watch() <-chan []string {
 	ch := make(chan []string, 16)
 
 	go func() {
 		defer close(ch)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
 		for {
 			select {
-			case event, ok := <-w.fsw.Events:
-				if !ok {
-					return
-				}
-				// Normalize paths for comparison
-				if !w.isSameFile(event.Name) {
-					continue
-				}
-				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
-					newLines := w.readNew()
-					if len(newLines) > 0 {
-						select {
-						case ch <- newLines:
-						case <-w.done:
-							return
-						}
+			case <-ticker.C:
+				newLines := w.readNew()
+				if len(newLines) > 0 {
+					log.Printf("[watcher] poll: %d new lines", len(newLines))
+					select {
+					case ch <- newLines:
+					case <-w.done:
+						return
 					}
-				}
-			case _, ok := <-w.fsw.Errors:
-				if !ok {
-					return
 				}
 			case <-w.done:
 				return
@@ -149,15 +127,15 @@ func (w *Watcher) readNew() []string {
 	return lines
 }
 
-func (w *Watcher) isSameFile(eventPath string) bool {
-	// Normalize separators for Windows
-	a := strings.ReplaceAll(w.path, "\\", "/")
-	b := strings.ReplaceAll(eventPath, "\\", "/")
-	return strings.EqualFold(a, b)
+// ResetOffset resets the read offset to 0 (used after clearing the log file).
+func (w *Watcher) ResetOffset() {
+	w.mu.Lock()
+	w.offset = 0
+	w.mu.Unlock()
 }
 
 // Close stops watching and cleans up.
 func (w *Watcher) Close() error {
 	close(w.done)
-	return w.fsw.Close()
+	return nil
 }
