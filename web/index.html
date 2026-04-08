@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LSP Inspector</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toolbar">
+    <span class="brand">LSP Inspector</span>
+    <span class="separator">|</span>
+    <div id="server-filters"></div>
+    <span class="separator">|</span>
+    <input type="text" id="method-filter" placeholder="Filter by method..." />
+    <span class="spacer"></span>
+    <span id="status" class="status connected">● watching</span>
+    <span id="msg-count" class="msg-count">0 messages</span>
+  </div>
+
+  <div id="timeline"></div>
+
+  <div id="new-msg-indicator" class="hidden" onclick="scrollToBottom()">
+    ↓ <span id="new-msg-count">0</span> new messages
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
