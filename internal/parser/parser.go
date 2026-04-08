@@ -212,6 +212,23 @@ func ParseLines(lines []string, startLine int) []*Message {
 		}
 		msgs = append(msgs, m)
 	}
+
+	// Third pass: propagate server names from requests to their responses by ID.
+	// Responses (rpc.receive with id but no method) don't carry a server name in the log.
+	serverByID := make(map[int]string)
+	for _, m := range msgs {
+		if m.Direction == DirectionSend && m.ID != nil && m.Server != "" {
+			serverByID[*m.ID] = m.Server
+		}
+	}
+	for _, m := range msgs {
+		if m.Server == "" && m.ID != nil {
+			if srv, ok := serverByID[*m.ID]; ok {
+				m.Server = srv
+			}
+		}
+	}
+
 	return msgs
 }
 
