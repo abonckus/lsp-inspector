@@ -176,9 +176,18 @@ func parseLuaPayload(msg *Message, raw string) {
 }
 
 // ParseLines parses multiple log lines starting from a given line offset.
+// It auto-detects the format (Neovim lsp.log vs VS Code trace log) and delegates.
+func ParseLines(lines []string, startLine int) []*Message {
+	if IsVSCodeFormat(lines) {
+		return parseVSCodeLines(lines, startLine)
+	}
+	return parseNeovimLines(lines, startLine)
+}
+
+// parseNeovimLines parses Neovim lsp.log lines.
 // It deduplicates client.request entries against rpc.send entries:
 // client.request is used only to extract the server name, then discarded.
-func ParseLines(lines []string, startLine int) []*Message {
+func parseNeovimLines(lines []string, startLine int) []*Message {
 	var msgs []*Message
 	// First pass: collect all messages
 	var all []*Message
