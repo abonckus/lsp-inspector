@@ -9,7 +9,7 @@ import (
 )
 
 // Regex to match the log line header: [LEVEL][timestamp] source
-var logLineRe = regexp.MustCompile(`^\[(\w+)\]\[([^\]]+)\]\s+(\S+)`)
+var logLineRe = regexp.MustCompile(`^\[(\w+)\]\[([^\]]+)\]\s+([^\t]+)`)
 
 // ParseLine parses a single lsp.log line into a Message.
 // lineNum is the 0-based line number in the file.
