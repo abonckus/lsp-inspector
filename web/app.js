@@ -158,10 +158,18 @@
     badge.textContent = msg.direction === "send" ? "SEND" : "RECV";
     header.appendChild(badge);
 
-    if (msg.method) {
+    // Show method name — for responses, look up the matching request
+    var displayMethod = msg.method;
+    if (!displayMethod && msg.direction === "receive" && msg.id !== null && msg.id !== undefined) {
+      var reqMsg = findRequest(msg.id);
+      if (reqMsg && reqMsg.method) {
+        displayMethod = reqMsg.method + " response";
+      }
+    }
+    if (displayMethod) {
       var methodEl = document.createElement("span");
       methodEl.className = "method-name " + msg.direction;
-      methodEl.textContent = msg.method;
+      methodEl.textContent = displayMethod;
       header.appendChild(methodEl);
     }
 
@@ -256,17 +264,47 @@
       text += " — LSP logging initiated";
     } else if (msg.rawPayload && msg.rawPayload.indexOf && msg.rawPayload.indexOf("cmd") >= 0) {
       pill.className = "pill start-rpc";
-      // Try to extract server name from payload
       var serverName = msg.server || "unknown";
       text += " — Starting RPC client: " + serverName;
-    } else if (msg.type === "info" && msg.server) {
-      text += " — " + msg.server + " info";
+    } else if (msg.server) {
+      text += " — " + msg.server;
+      if (msg.method) text += ": " + msg.method;
     } else {
-      text += " — " + (msg.type || "info");
+      text += " — " + msg.level;
     }
 
     pill.textContent = text;
     div.appendChild(pill);
+
+    // Show payload summary for info messages that have content
+    var payloadStr = msg.payload ? JSON.stringify(msg.payload) : msg.rawPayload || "";
+    if (payloadStr && payloadStr !== "{}" && payloadStr !== "null" && payloadStr.length > 2) {
+      var detail = document.createElement("div");
+      detail.className = "msg-system";
+      var detailPill = document.createElement("span");
+      detailPill.className = "pill";
+      detailPill.style.cursor = "pointer";
+      detailPill.style.maxWidth = "600px";
+      detailPill.style.overflow = "hidden";
+      detailPill.style.textOverflow = "ellipsis";
+      detailPill.style.whiteSpace = "nowrap";
+      var preview = payloadStr.length > 100 ? payloadStr.substring(0, 100) + "..." : payloadStr;
+      detailPill.textContent = preview;
+      detailPill.onclick = function () {
+        if (detailPill.style.whiteSpace === "nowrap") {
+          detailPill.style.whiteSpace = "pre-wrap";
+          detailPill.style.maxWidth = "700px";
+          detailPill.textContent = msg.payload ? JSON.stringify(msg.payload, null, 2) : msg.rawPayload;
+        } else {
+          detailPill.style.whiteSpace = "nowrap";
+          detailPill.style.maxWidth = "600px";
+          detailPill.textContent = preview;
+        }
+      };
+      div.appendChild(detail);
+      detail.appendChild(detailPill);
+    }
+
     return div;
   }
 

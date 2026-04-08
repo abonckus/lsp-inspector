@@ -154,7 +154,7 @@ html, body {
   justify-content: flex-start;
 }
 
-.msg-row.recv {
+.msg-row.receive {
   justify-content: flex-end;
 }
 
@@ -170,7 +170,7 @@ html, body {
   text-align: right;
 }
 
-.msg-row.recv .msg-timestamp {
+.msg-row.receive .msg-timestamp {
   text-align: left;
 }
 
@@ -187,7 +187,7 @@ html, body {
   border: 1px solid var(--send-border);
 }
 
-.bubble.recv {
+.bubble.receive {
   background: var(--recv-bg);
   border: 1px solid var(--recv-border);
 }
@@ -216,7 +216,7 @@ html, body {
   background: var(--send-border);
 }
 
-.badge.recv {
+.badge.receive {
   background: var(--recv-border);
 }
 
@@ -229,7 +229,7 @@ html, body {
   color: var(--send-text);
 }
 
-.method-name.recv {
+.method-name.receive {
   color: var(--recv-text);
 }
 
