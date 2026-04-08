@@ -192,6 +192,11 @@ html, body {
   border: 1px solid var(--recv-border);
 }
 
+.bubble.info {
+  background: #1a2a2a;
+  border: 1px solid #2d4a4a;
+}
+
 .bubble.collapsed {
   background: var(--bg);
   border: 1px dashed var(--text-dim);
@@ -218,6 +223,18 @@ html, body {
 
 .badge.receive {
   background: var(--recv-border);
+}
+
+.badge.info {
+  background: #2d4a4a;
+}
+
+.method-name.info {
+  color: #5eead4;
+}
+
+.msg-row.info {
+  justify-content: center;
 }
 
 .method-name {

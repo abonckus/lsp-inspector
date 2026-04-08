@@ -135,10 +135,18 @@
   }
 
   function renderMessage(msg) {
-    if (msg.direction === "info") {
-      return renderSystemMessage(msg);
+    // START marker is the only true centered pill
+    if (msg.level === "START") {
+      var div = document.createElement("div");
+      div.className = "msg-system";
+      var pill = document.createElement("span");
+      pill.className = "pill";
+      pill.textContent = formatTime(msg.timestamp) + " — LSP logging initiated";
+      div.appendChild(pill);
+      return div;
     }
 
+    // Everything else is a bubble
     var row = document.createElement("div");
     row.className = "msg-row " + msg.direction;
 
@@ -153,18 +161,30 @@
     var header = document.createElement("div");
     header.className = "bubble-header";
 
+    // Badge
     var badge = document.createElement("span");
     badge.className = "badge " + msg.direction;
-    badge.textContent = msg.direction === "send" ? "SEND" : "RECV";
+    if (msg.direction === "send") {
+      badge.textContent = "SEND";
+    } else if (msg.direction === "receive") {
+      badge.textContent = "RECV";
+    } else {
+      badge.textContent = msg.level || "INFO";
+      badge.className = "badge info";
+    }
     header.appendChild(badge);
 
-    // Show method name — for responses, look up the matching request
+    // Method name — for responses, look up the matching request
     var displayMethod = msg.method;
     if (!displayMethod && msg.direction === "receive" && msg.id !== null && msg.id !== undefined) {
       var reqMsg = findRequest(msg.id);
       if (reqMsg && reqMsg.method) {
         displayMethod = reqMsg.method + " response";
       }
+    }
+    // For info messages with no method, show the message type
+    if (!displayMethod && msg.direction === "info") {
+      displayMethod = msg.type === "info" ? (msg.rawPayload && msg.rawPayload.indexOf("cmd") >= 0 ? "Starting RPC client" : msg.type) : msg.type;
     }
     if (displayMethod) {
       var methodEl = document.createElement("span");
@@ -179,7 +199,6 @@
       idEl.textContent = "id:" + msg.id;
       header.appendChild(idEl);
     } else if (msg.method && !msg.method.startsWith("$")) {
-      // No id = notification (unless it's a response)
       var catEl = document.createElement("span");
       catEl.className = "msg-category";
       catEl.textContent = "(notification)";
@@ -204,7 +223,7 @@
 
     bubble.appendChild(header);
 
-    // Payload
+    // Payload (collapsible)
     if (payloadStr && payloadStr !== "{}" && payloadStr !== "null") {
       var payloadToggle = document.createElement("div");
       payloadToggle.className = "payload-toggle";
@@ -233,79 +252,30 @@
     if (msg.direction === "receive" && msg.id !== null && msg.id !== undefined && !msg.method) {
       var linkEl = document.createElement("div");
       linkEl.className = "response-link";
-      var reqMsg = findRequest(msg.id);
+      var matchedReq = findRequest(msg.id);
       var elapsed = "";
-      if (reqMsg) {
-        elapsed = " · " + calcElapsed(reqMsg.timestamp, msg.timestamp);
+      if (matchedReq) {
+        elapsed = " · " + calcElapsed(matchedReq.timestamp, msg.timestamp);
       }
       linkEl.textContent = "↩ responds to id:" + msg.id + elapsed;
       bubble.appendChild(linkEl);
     }
 
+    // Layout: send = ts+bubble, receive = bubble+ts, info = centered
     if (msg.direction === "send") {
       row.appendChild(ts);
       row.appendChild(bubble);
-    } else {
+    } else if (msg.direction === "receive") {
       row.appendChild(bubble);
       row.appendChild(ts);
+    } else {
+      // Info: centered with timestamp inside
+      row.className = "msg-row info";
+      row.appendChild(ts);
+      row.appendChild(bubble);
     }
 
     return row;
-  }
-
-  function renderSystemMessage(msg) {
-    var div = document.createElement("div");
-    div.className = "msg-system";
-    var pill = document.createElement("span");
-    pill.className = "pill";
-
-    var text = formatTime(msg.timestamp);
-    if (msg.level === "START") {
-      text += " — LSP logging initiated";
-    } else if (msg.rawPayload && msg.rawPayload.indexOf && msg.rawPayload.indexOf("cmd") >= 0) {
-      pill.className = "pill start-rpc";
-      var serverName = msg.server || "unknown";
-      text += " — Starting RPC client: " + serverName;
-    } else if (msg.server) {
-      text += " — " + msg.server;
-      if (msg.method) text += ": " + msg.method;
-    } else {
-      text += " — " + msg.level;
-    }
-
-    pill.textContent = text;
-    div.appendChild(pill);
-
-    // Show payload summary for info messages that have content
-    var payloadStr = msg.payload ? JSON.stringify(msg.payload) : msg.rawPayload || "";
-    if (payloadStr && payloadStr !== "{}" && payloadStr !== "null" && payloadStr.length > 2) {
-      var detail = document.createElement("div");
-      detail.className = "msg-system";
-      var detailPill = document.createElement("span");
-      detailPill.className = "pill";
-      detailPill.style.cursor = "pointer";
-      detailPill.style.maxWidth = "600px";
-      detailPill.style.overflow = "hidden";
-      detailPill.style.textOverflow = "ellipsis";
-      detailPill.style.whiteSpace = "nowrap";
-      var preview = payloadStr.length > 100 ? payloadStr.substring(0, 100) + "..." : payloadStr;
-      detailPill.textContent = preview;
-      detailPill.onclick = function () {
-        if (detailPill.style.whiteSpace === "nowrap") {
-          detailPill.style.whiteSpace = "pre-wrap";
-          detailPill.style.maxWidth = "700px";
-          detailPill.textContent = msg.payload ? JSON.stringify(msg.payload, null, 2) : msg.rawPayload;
-        } else {
-          detailPill.style.whiteSpace = "nowrap";
-          detailPill.style.maxWidth = "600px";
-          detailPill.textContent = preview;
-        }
-      };
-      div.appendChild(detail);
-      detail.appendChild(detailPill);
-    }
-
-    return div;
   }
 
   function renderCollapsed(group) {
