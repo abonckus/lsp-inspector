@@ -2,7 +2,7 @@
 
 Real-time web UI for viewing LSP client/server communication in a chat-style timeline.
 
-![screenshot](https://github.com/user-attachments/assets/placeholder)
+![screenshot](screenshot.png)
 
 Supports **Neovim** `lsp.log` (live watching) and **VS Code** trace logs (static viewing).
 
